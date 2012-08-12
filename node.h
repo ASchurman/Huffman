@@ -15,7 +15,7 @@ class node
 public:
     // internal node constructor.
     // parent is initialized to null
-    node(double frequency, node *leftChild, node *rightChild);
+    node(node *leftChild, node *rightChild);
     
     // leaf node constructor.
     // parent is initialized to null

@@ -9,9 +9,12 @@
 #include <cstddef>
 
 // internal node constructor
-node::node(double frequency, node *leftChild, node *rightChild)
+node::node(node *leftChild, node *rightChild)
 {
-    freq = frequency;
+    leftChild->parent = this;
+    rightChild->parent = this;
+    
+    freq = leftChild->freq + rightChild->freq;
     
     children[0] = leftChild;
     children[1] = rightChild;
