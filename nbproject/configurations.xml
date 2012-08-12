@@ -2,6 +2,8 @@
 <configurationDescriptor version="84">
   <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
     <df name="Huffman" root=".">
+      <df name=".git">
+      </df>
       <in>main.cpp</in>
       <in>node.cpp</in>
       <in>node.h</in>

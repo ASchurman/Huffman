@@ -13,7 +13,6 @@ node::node(double frequency, node *leftChild, node *rightChild)
 {
     freq = frequency;
     
-    children = new node[2];
     children[0] = leftChild;
     children[1] = rightChild;
     
@@ -29,7 +28,6 @@ node::node(double frequency, char symbol)
     freq = frequency;
     
     // these children will ALWAYS be NULL since this is a leaf node
-    children = new node[2];
     children[0] = NULL;
     children[1] = NULL;
     
@@ -40,19 +38,18 @@ node::node(double frequency, char symbol)
 
 node::node(const node& orig)
 {
-    freq = orig->freq;
+    freq = orig.freq;
     
-    children = new node[2];
-    children[0] = orig->children[0];
-    children[1] = orig->children[1];
+    children[0] = orig.children[0];
+    children[1] = orig.children[1];
     
-    parent = orig->parent;
+    parent = orig.parent;
     
-    sym = orig->sym;
+    sym = orig.sym;
 }
 
 node::~node()
 {
-    // deletes the children as well as the array of pointers to them
-    delete[] children;
+    delete children[0];
+    delete children[1];
 }

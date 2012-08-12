@@ -37,7 +37,7 @@ public:
     node *parent;
     
     // Array of pointers to this node's children
-    node *children[];
+    node *children[2];
     
 private:
 
