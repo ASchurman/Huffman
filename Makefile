@@ -8,7 +8,7 @@
 TARGET	:=huffman
 
 # source files with extensions, separated by spaces
-SOURCES	:=main.cpp node.cpp
+SOURCES	:=main.cpp node.cpp huffman.cpp
 
 # set CPP to 1 for compiling C++; set to 0 for compiling C
 CPP	:=1
@@ -30,7 +30,7 @@ endif
 
 # flags------------------------------------
 ALLFLAGS	:= -Wall -pedantic -Werror
-CFLAGSBASE	:= -std=c99 -fsigned-char
+CFLAGSBASE	:= -std=c99
 CPPFLAGSBASE	:=
 
 DEBUGFLAGS	:= -g3

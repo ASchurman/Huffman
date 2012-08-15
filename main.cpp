@@ -8,12 +8,18 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include "huffman.h"
 
-using namespace std;
+using std::cout;
+using std::cerr;
+using std::ifstream;
+using std::ofstream;
+using std::ios;
+using std::string;
 
 // returns the extension with dot of a file path,
 // or the empty string if there's no dot or the extension is longer than 3 chars
-inline string getExtension(string path)
+inline string getExtension(const string& path)
 {
     string::size_type index = path.rfind(".");
     
@@ -27,11 +33,6 @@ inline string getExtension(string path)
     }
 }
 
-inline void fileDNE()
-{
-    cerr << "Failed to open given file path.\n";
-}
-
 int main(int argc, char** argv)
 {
     // if incorrect num of args is given, yell at user
@@ -42,42 +43,37 @@ int main(int argc, char** argv)
         return 1;
     }
     else // exactly one arg was passed
-    {
+    {   
         string path (argv[1]);
-        ifstream input;
+        char errorCode = 0;
         
         if(getExtension(path) == ".huf")
         {
             // decode
-            try
-            {
-                input.open(argv[1], ios::in | ios::binary);
-            }
-            catch(ifstream::failure e)
-            {
-                fileDNE();
-                return 1;
-            }
-            
-            // TODO: invoke decode function
+            errorCode = huffman::decode(argv[1], "not yet used");
         }
         else
         {
             // encode
-            try
-            {
-                input.open(argv[1], ios::in);
-            }
-            catch(ifstream::failure e)
-            {
-                fileDNE();
-                return 1;
-            }
-            
-            // TODO: invoke encode function
+            errorCode = huffman::encode(argv[1], path.append(".huf").c_str());
         }
         
-        input.close();
+        switch(errorCode)
+        {
+            case 0: // no error
+                break;
+            case 1: // error in input file path
+                cerr << "Failed to open input file.\n";
+                break;
+            case 2:
+                cerr << "Failed to open output file.\n";
+                break;
+            default:
+                cerr << "Unknown error";
+                break;
+        }
+        
+        return errorCode;
     }
     
     return 0;

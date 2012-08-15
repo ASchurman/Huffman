@@ -9,17 +9,12 @@
 #include <cstddef>
 
 // internal node constructor
-node::node(node *leftChild, node *rightChild)
+node::node(node* leftChild, node* rightChild)
 {
-    leftChild->parent = this;
-    rightChild->parent = this;
-    
     freq = leftChild->freq + rightChild->freq;
     
     children[0] = leftChild;
     children[1] = rightChild;
-    
-    parent = NULL;
     
     // internal nodes don't represent a single symbol
     sym = 0;
@@ -34,8 +29,6 @@ node::node(double frequency, char symbol)
     children[0] = NULL;
     children[1] = NULL;
     
-    parent = NULL;
-    
     sym = symbol;
 }
 
@@ -46,13 +39,18 @@ node::node(const node& orig)
     children[0] = orig.children[0];
     children[1] = orig.children[1];
     
-    parent = orig.parent;
-    
     sym = orig.sym;
 }
 
 node::~node()
 {
-    delete children[0];
-    delete children[1];
+    if(children[0])
+    {
+        delete children[0];
+    }
+    
+    if(children[1])
+    {
+        delete children[1];
+    }
 }
