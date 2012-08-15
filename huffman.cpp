@@ -15,8 +15,7 @@
 #include "huffman.h"
 #include "node.h"
 
-using std::ifstream;
-using std::ofstream;
+using std::fstream;
 using std::ios;
 using std::map;
 using std::vector;
@@ -62,56 +61,34 @@ namespace huffman
             }
         }
         
-        ifstream* openInput(const char* path, bool binary)
+        // Returns a heap-alloc'd fstream for the file
+        // pointed to by path, or NULL if the open fails.
+        // If input == true, opens the file in input mode,
+        // else opens the file in output mode.
+        fstream* openFile(const char* path, bool input)
         {
-            ifstream* inputptr = new ifstream();
-            ifstream& input = *inputptr;
+            fstream* fileptr = new fstream();
+            fstream& file = *fileptr;
             
-            if(binary)
+            if(input)
             {
-                input.open(path, ios::in | ios::binary);
+                file.open(path, ios::in);
             }
             else
             {
-                input.open(path, ios::in);
+                file.open(path, ios::out | ios::trunc);
             }
             
-            if(input.good())
+            if(file.good())
             {
-                return inputptr;
+                return fileptr;
             }
             else
             {
-                delete inputptr;
+                delete fileptr;
                 return NULL;
             }
         }
-        
-        ofstream* openOutput(const char* path, bool binary)
-        {
-            ofstream* outputptr = new ofstream();
-            ofstream& output = *outputptr;
-            
-            if(binary)
-            {
-                output.open(path, ios::trunc | ios::out | ios::binary);
-            }
-            else
-            {
-                output.open(path, ios::trunc | ios::out);
-            }
-            
-            if(output.good())
-            {
-                return outputptr;
-            }
-            else
-            {
-                delete outputptr;
-                return NULL;
-            }
-        }
-        
         
         // populates map<char,codeword> words with symbol-code pairs
         // produced by traversing the tree rooted with given root
@@ -135,64 +112,117 @@ namespace huffman
                 childWord.bits = currWord.bits + 1;
                 childWord.code = currWord.code << 1;
                 
+                // before pushing a codeword into words,
+                // codeword.sym is initialized, so childWord.sym doesn't matter.
+                // To get the compiler to be quiet, let's just initialize to 0.
+                childWord.sym = 0;
+                
                 getCodewords(words, *(root.children[0]), childWord);
                 
                 childWord.code++;
                 getCodewords(words, *(root.children[1]), childWord);
             }
         }
+        
+        // populates counts with character counts and returns the total
+        // number of characters
+        unsigned int countChars(fstream& input, map<char, double>& counts)
+        {
+            char c;
+            unsigned int total = 0;
+            
+            while(input.get(c))
+            {
+                counts[c]++;
+                total++;
+            }
+            
+            return total;
+        }
+        
+        // returns the heap-alloc'd root of the Huffman tree
+        node* constructTree(map<char, double>& counts, unsigned int total)
+        {
+            // first create a leaf node for each symbol and add it to a
+            // priority queue
+            priority_queue<node*, vector<node*>, freqCompare> pq;
+        
+            typedef map<char, double>::iterator it_char_doub_type;
+            for(it_char_doub_type it = counts.begin(); it != counts.end(); it++)
+            {
+                double freq = it->second / total;
+
+                node* newnode = new node(freq, it->first);
+
+                pq.push(newnode);
+            }
+
+            // pop nodes from queue to construct Huffman tree
+            while(pq.size() > 1)
+            {
+                node* a = pq.top();
+                pq.pop();
+                node* b = pq.top();
+                pq.pop();
+
+                node* internalNode = new node(a, b);
+                pq.push(internalNode);
+            }
+            node* root = pq.top();
+            
+            return root;
+        }
+        
+        // turns any Huffman code into a canonical one.
+        // returns a heap-alloc'd codebook for this new code
+        map<char, codeword>* canonize(vector<codeword>& words)
+        {
+            std::sort(words.begin(), words.end(), codewordCompare);
+
+            map<char, codeword>* bookptr = new map<char, codeword>();
+            map<char, codeword>& book = *bookptr;
+
+            words[0].code = 0; // first word is zero
+            book[words[0].sym] = words[0];
+            for(unsigned int i = 1; i < words.size(); i++)
+            {
+                // each word is one greater than last
+                words[i].code = words[i-1].code + 1;
+
+                // if a word is longer than the previous one,
+                // left shift until it's the appropriate length
+                if(words[i].bits > words[i-1].bits)
+                {
+                    for(int j = words[i-1].bits; j < words[i].bits; j++)
+                    {
+                        words[i].code = words[i].code << 1;
+                    }
+                }
+
+                book[words[i].sym] = words[i];
+            }
+            
+            return bookptr;
+        }
     }
     
     // returns 0 if successful, 1 if inpath is invalid, 2 if outpath is invalid
     char encode(const char* inpath, const char* outpath)
     {
-        // open inpath in normal mode; not binary
-        ifstream* inputptr = openInput(inpath, false);
+        // open inpath
+        fstream* inputptr = openFile(inpath, true);
         if(!inputptr)
         {
             return 1; // inpath is invalid
         }
-        ifstream& input = *inputptr;
+        fstream& input = *inputptr;
         
         // first count symbols
-        char c;
-        unsigned int total = 0;
         map<char, double> counts;
+        unsigned int total = countChars(input, counts);
 
-        while(input.get(c))
-        {
-            counts[c]++;
-            total++;
-        }
-        input.close();
-        delete inputptr;
-
-        // now create a leaf node for each symbol and add it to a
-        // priority queue
-        priority_queue<node*, vector<node*>, freqCompare> pq;
-        
-        typedef map<char, double>::iterator it_char_doub_type;
-        for(it_char_doub_type it = counts.begin(); it != counts.end(); it++)
-        {
-            double freq = it->second / total;
-            
-            node* newnode = new node(freq, it->first);
-            
-            pq.push(newnode);
-        }
-
-        // pop nodes from queue to construct Huffman tree
-        while(pq.size() > 1)
-        {
-            node* a = pq.top();
-            pq.pop();
-            node* b = pq.top();
-            pq.pop();
-            
-            node* internalNode = new node(a, b);
-            pq.push(internalNode);
-        }
-        node* root = pq.top();
+        // then construct Huffman tree
+        node* root = constructTree(counts, total);
         
         // construct codebook by traversing tree
         vector<codeword>* wordsptr = new vector<codeword>();
@@ -204,32 +234,10 @@ namespace huffman
         getCodewords(words, *root, initWord);
         delete root;
         
-        // sort words by length and symbol to get a canonical Huffman codebook
-        std::sort(words.begin(), words.end(), codewordCompare);
-        
-        map<char, codeword>* bookptr = new map<char, codeword>();
+        // put this Huffman code in canonical form
+        map<char, codeword>* bookptr = canonize(words);
         map<char, codeword>& book = *bookptr;
-        
-        words[0].code = 0; // first word is zero
-        book[words[0].sym] = words[0];
-        for(unsigned int i = 1; i < words.size(); i++)
-        {
-            // each word is one greater than last
-            words[i].code = words[i-1].code + 1;
-            
-            // if a word is longer than the previous one,
-            // left shift until it's the appropriate length
-            if(words[i].bits > words[i-1].bits)
-            {
-                for(int j = words[i-1].bits; j < words[i].bits; j++)
-                {
-                    words[i].code = words[i].code << 1;
-                }
-            }
-            
-            book[words[i].sym] = words[i];
-        }     
-        delete wordsptr;
+        delete wordsptr; // we no longer need the old codebook
         
         // test this function so far by printing codebook
         typedef map<char, codeword>::iterator it_char_code_type;
@@ -242,7 +250,11 @@ namespace huffman
             printf("Sym: %c\nCode: %x\nBits: %d\n\n", sym, code, bits);
         }
         
+        // clean up
+        input.close();
+        delete inputptr;
         delete bookptr;
+        
         return 0; // success
     }
     
