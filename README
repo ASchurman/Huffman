@@ -1,5 +1,6 @@
 Alexander Schurman
 <alexander.schurman@gmail.com>
 
-This project is a simple C++ implementation of Huffman coding. As you can
-probably tell, it's still very much a work in progress.
+This project is a simple C++ implementation of Huffman coding. It's still in the very early stages.
+
+When this project has basic encoding and decoding functionality, I'll update this README to explain how to build and run.
