@@ -190,6 +190,7 @@ namespace huffman
             
             printf("Sym: %c\nCode: %x\nBits: %d\n\n", sym, code, bits);
         }
+        delete wordsptr;
         
         return 0; // success
     }
