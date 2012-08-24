@@ -39,7 +39,7 @@ int main(int argc, char** argv)
     if(argc != 2)
     {
         cerr << "huffman must be passed exactly one argument: "
-                "the path to a file to encode or decode.\n";
+                "the name of the file to encode or decode.\n";
         return 1;
     }
     else // exactly one arg was passed
@@ -50,7 +50,8 @@ int main(int argc, char** argv)
         if(getExtension(path) == ".huf")
         {
             // decode
-            errorCode = huffman::decode(argv[1], "not yet used");
+            //errorCode = huffman::decode(argv[1], "not yet used");
+            cout << "Decode hasn't been writen yet\n";
         }
         else
         {

@@ -14,6 +14,7 @@
 
 #include "huffman.h"
 #include "node.h"
+#include "bitBuffer.h"
 
 using std::fstream;
 using std::ios;
@@ -37,8 +38,8 @@ namespace huffman
         struct codeword
         {
             char sym;
-            char code;
-            char bits; // number of bits in char code
+            unsigned int code;
+            unsigned char bits; // number of bits in char code
         };
         
         bool codewordCompare(const codeword& a, const codeword& b)
@@ -217,6 +218,18 @@ namespace huffman
         }
         fstream& input = *inputptr;
         
+        // create bitBuffer and open the output file in it
+        bitBuffer* outputptr = new bitBuffer();
+        bitBuffer& output = *outputptr;
+        if(!output.open(outpath))
+        {
+            input.close();
+            delete inputptr;
+            delete outputptr;
+            return 2; // outpath is invalid
+        }
+        
+        
         // first count symbols
         map<char, double> counts;
         unsigned int total = countChars(input, counts);
@@ -239,20 +252,70 @@ namespace huffman
         map<char, codeword>& book = *bookptr;
         delete wordsptr; // we no longer need the old codebook
         
-        // test this function so far by printing codebook
+        // write the codebook to output.
+        // because we're using a canonical Huffman code, only the code lengths
+        // need to be written if we write them in alphabetical order
         typedef map<char, codeword>::iterator it_char_code_type;
-        for(it_char_code_type it = book.begin(); it != book.end(); it++)
+        it_char_code_type it = book.begin();
+        for(unsigned char c = 0; c < 128; c++)
         {
-            char sym = it->first;
-            char code = it->second.code;
-            char bits = it->second.bits;
+            char sym = (it == book.end()) ? 0 : it->first;
+            char code = (it == book.end()) ? 0 : it->second.code;
+            char bits = (it == book.end()) ? 0 : it->second.bits;
             
-            printf("Sym: %c\nCode: %x\nBits: %d\n\n", sym, code, bits);
+            if(it != book.end() && sym == c)
+            {
+                output.write(bits);
+                
+                // test this function so far by printing codebook
+                printf("Sym: %c\nCode: %x\nBits: %d\n\n", sym, code, bits);
+                
+                it++;
+            }
+            else
+            {
+                output.write(0);
+            }
+        }
+        
+        // translate input to a stream of bits using our codebook,
+        // and write the bits to 
+        input.clear();
+        input.seekg(0, ios::beg);
+        char c;
+        while(input.get(c))
+        {
+            codeword word = book[c];
+            
+            unsigned char bits = word.bits;
+            unsigned int code = word.code;
+            
+            unsigned int mask = 0x01;
+            mask <<= bits - 1; // results in a 1 at the most sig. bit of code
+            
+            char* codeChars = new char[bits];
+            for(int i = 0; i < bits; i++)
+            {
+                if((mask & code) == 0)
+                {
+                    codeChars[i] = 0;
+                }
+                else
+                {
+                    codeChars[i] = 1;
+                }
+                mask >>= 1;
+            }
+            
+            output.write(codeChars, bits);
+            delete[] codeChars;
         }
         
         // clean up
         input.close();
+        output.close();
         delete inputptr;
+        delete outputptr;
         delete bookptr;
         
         return 0; // success
