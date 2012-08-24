@@ -1,6 +1,13 @@
 Alexander Schurman
 <alexander.schurman@gmail.com>
 
-This project is a simple C++ implementation of Huffman coding. It's still in the very early stages.
+This project is a simple C++ implementation of Huffman coding. Currently, it can only encode files; the decoding function is in development.
 
-When this project has basic encoding and decoding functionality, I'll update this README to explain how to build and run.
+COMPILING
+Compiling is handled by the Make utility. To compile, simply navigate to the root folder of the repository and run "make". To compile in debug mode, run "make DEBUG=1".
+
+RUNNING
+The executable "huffman" should be passed a single argument: the name of the file to encode (or decode, when the decoding function is completed). The encoded file is placed in the same directory with ".huf" appended to the file name.
+
+ANATOMY OF AN ENCODED FILE
+The first 3 bits of the file indicate the number of excess bits at the end of the last byte; these trailing bits will be ignored by the decoder. The next 128 bytes describe the codebook. Because a canonical Huffman code (http://en.wikipedia.org/wiki/Canonical_Huffman_code) is used to encode files, describing the codebook is as simple as giving the number of bits in each codeword alphabetically, giving a 0 for symbols not present in the file. After the codebook, the input file is encoded.
