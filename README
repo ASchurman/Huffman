@@ -1,5 +1,5 @@
 Alexander Schurman
-<alexander.schurman@gmail.com>
+<alexander.schurman@gmail.com> 
 
 This project is a simple C++ implementation of Huffman coding. Currently, it can only encode files; the decoding function is on hold while I work on my university courses.
 
