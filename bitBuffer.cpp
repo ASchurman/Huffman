@@ -14,111 +14,84 @@ using std::ios;
 using std::vector;
 using std::ofstream;
 
-bitBuffer::bitBuffer()
+BitFileOut::BitFileOut(const std::string& filePath)
 {
-    outfile = new ofstream();
-    
-    buffer = new vector<unsigned char>();
-    buffer->push_back(0x00);
-    
-    // reserve 3 bits to indicate the number of unused bits at the end
-    // of the last byte
-    mask = 0x10; // binary 0001 0000
+    open(filePath);
 }
 
-bitBuffer::bitBuffer(const bitBuffer& orig)
+BitFileOut::~BitFileOut()
 {
-    outfile = orig.outfile;
-    buffer = orig.buffer;
-    mask = orig.mask;
-}
-
-bitBuffer::~bitBuffer()
-{
-    if(outfile->is_open())
+    if (isOpen())
     {
-        outfile->close();
+        close();
     }
-    delete outfile;
-    
-    delete buffer;
 }
 
-bool bitBuffer::open(const char* outputFilePath)
+bool BitFileOut::open(const std::string& filePath)
 {
-    outfile->open(outputFilePath, ios::out | ios::trunc | ios::binary);
-    
-    return outfile->good();
+    outfile.open(filePath, ios::in | ios::out | ios::binary | ios::trunc);
+    return outfile.good();
 }
 
-void bitBuffer::close()
+void BitFileOut::close()
 {
-    // check for openness; we can only close files that are open
-    if(!outfile->is_open())
+    // We can't close if we're already closed.
+    if (!isOpen())
     {
         return;
     }
     
-    // determine the number of unused bits at the end of the last byte
-    unsigned char numUnused;
-    for(numUnused = 0; mask != 0; mask >>= 1)
-    {
-        numUnused++;
-    }
-    
-    // write the num of unused bits to the first 3 bits of the buffer
-    // that were reserved upon construction
-    numUnused <<= 5; // shift to 3 most significant bits
-    buffer->at(0) |= numUnused;
-    
-    // write the buffer vector into outfile
-    outfile->write(reinterpret_cast<char*>(&(buffer->front())), buffer->size());
-    
-    outfile->close();
-}
+    // First, determine the number of unused bits at the end of the last byte.
+    unsigned char numUnused = 0;
 
-// adds a new byte to the buffer if we need one
-inline void bitBuffer::checkBuffer()
-{
-    // zero mask means that we've right-shifted the 1 off of it;
-    // it's time to push a new byte on
-    if(mask == 0)
+    // If the next bit to be written is the most-significant-bit, then there's
+    // currently no bits in the buffer and thus no unused bits.
+    if (nextBit != 0x80)
     {
-        buffer->push_back(0x00);
-        mask = 0x80; // binary 1000 0000
-    }
-}
-
-void bitBuffer::write(const char* bits, char numBits)
-{
-    for(int i = 0; i < numBits; i++)
-    {
-        checkBuffer(); // add a new byte if it's needed
-        
-        // we only need to modify the current byte if we're
-        // writing a 1; the bytes are initialized to 0 in checkBuffer()
-        if(bits[i] == 1)
+        for (numUnused = 0; nextBit != 0; nextBit >>= 1)
         {
-            buffer->at(buffer->size() - 1) |= mask;
+            numUnused++;
         }
-        
-        // update the mask
-        mask >>= 1;
+    }
+
+    // Next, flush the buffer to file if there's anything in the buffer.
+    if (numUnused > 0)
+    {
+        outfile.put((char)buffer);
+    }
+
+    // Finally, write my unused bits to the beginning of the file and close it.
+    outfile.seekp(0);
+    unsigned char firstByte = outfile.peek();
+    firstByte |= numUnused << 5; // Shift 5 moves numUnused to 3 most-sig-bits
+    outfile.put(firstByte);
+
+    outfile.close();
+}
+
+void BitFileOut::writeBit(unsigned char bit)
+{
+    if (bit)
+    {
+        buffer |= nextBit;
+    }
+
+    nextBit >>= 1;
+
+    // If nextBit is 0, then we've right-shifted the 1 off of it, meaning the
+    // buffer is full and needs to be flushed.
+    if (nextBit == 0)
+    {
+        outfile.put(buffer);
+        nextBit = 0x80;
+        buffer = 0x00;
     }
 }
 
-void bitBuffer::write(unsigned char bits)
+void BitFileOut::writeByte(unsigned char bits)
 {
-    for(unsigned char i = 0x80; i != 0; i >>= 1)
+    for (unsigned char mask = 0x80; mask != 0; mask >>= 1)
     {
-        checkBuffer(); // adds a new byte if it's needed
-        
-        if((bits & i) != 0)
-        {
-            buffer->at(buffer->size() - 1) |= mask;
-        }
-        
-        // update the mask
-        mask >>= 1;
+        writeBit(bits & mask);
     }
 }

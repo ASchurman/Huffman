@@ -218,9 +218,9 @@ namespace huffman
         }
         fstream& input = *inputptr;
         
-        // create bitBuffer and open the output file in it
-        bitBuffer* outputptr = new bitBuffer();
-        bitBuffer& output = *outputptr;
+        // create BitFileOut and open the output file in it
+        BitFileOut* outputptr = new BitFileOut();
+        BitFileOut& output = *outputptr;
         if(!output.open(outpath))
         {
             input.close();
@@ -265,7 +265,7 @@ namespace huffman
             
             if(it != book.end() && sym == c)
             {
-                output.write(bits);
+                output.writeByte(bits);
                 
                 // test this function so far by printing codebook
                 printf("Sym: %c\nCode: %x\nBits: %d\n\n", sym, code, bits);
@@ -274,7 +274,7 @@ namespace huffman
             }
             else
             {
-                output.write(0);
+                output.writeByte(0);
             }
         }
         
@@ -293,22 +293,18 @@ namespace huffman
             unsigned int mask = 0x01;
             mask <<= bits - 1; // results in a 1 at the most sig. bit of code
             
-            char* codeChars = new char[bits];
             for(int i = 0; i < bits; i++)
             {
                 if((mask & code) == 0)
                 {
-                    codeChars[i] = 0;
+                    output.writeBit(0);
                 }
                 else
                 {
-                    codeChars[i] = 1;
+                    output.writeBit(1);
                 }
                 mask >>= 1;
             }
-            
-            output.write(codeChars, bits);
-            delete[] codeChars;
         }
         
         // clean up
