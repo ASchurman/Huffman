@@ -31,7 +31,7 @@ endif
 # flags------------------------------------
 ALLFLAGS	:= -Wall -pedantic -Werror
 CFLAGSBASE	:= -std=c99
-CPPFLAGSBASE	:=
+CPPFLAGSBASE	:= -std=c++17
 
 DEBUGFLAGS	:= -g3
 RELEASEFLAGS	:= -O3
