@@ -14,7 +14,7 @@
 
 #include "huffman.h"
 #include "node.h"
-#include "bitBuffer.h"
+#include "bitFile.h"
 
 using std::fstream;
 using std::ios;

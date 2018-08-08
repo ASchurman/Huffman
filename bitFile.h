@@ -1,12 +1,12 @@
 /* 
- * File:   bitBuffer.h
+ * File:   bitFile.h
  * Author: Alexander Schurman, alexander.schurman@gmail.com
  *
  * Created on August 20, 2012
  */
 
-#ifndef BITBUFFER_H
-#define	BITBUFFER_H
+#ifndef BITFILE_H
+#define	BITFILE_H
 
 #include <fstream>
 #include <vector>

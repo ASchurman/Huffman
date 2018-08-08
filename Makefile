@@ -8,7 +8,7 @@
 TARGET	:=huffman
 
 # source files with extensions, separated by spaces
-SOURCES	:=main.cpp node.cpp huffman.cpp bitBuffer.cpp
+SOURCES	:=main.cpp node.cpp huffman.cpp bitFile.cpp
 
 # set CPP to 1 for compiling C++; set to 0 for compiling C
 CPP	:=1

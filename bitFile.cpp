@@ -1,11 +1,11 @@
 /* 
- * File:   bitBuffer.cpp
+ * File:   bitFile.cpp
  * Author: Alexander Schurman, alexander.schurman@gmail.com
  * 
  * Created on August 20, 2012
  */
 
-#include "bitBuffer.h"
+#include "bitFile.h"
 
 #include <fstream>
 #include <vector>
