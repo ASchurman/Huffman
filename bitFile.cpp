@@ -1,8 +1,6 @@
 /* 
  * File:   bitFile.cpp
  * Author: Alexander Schurman, alexander.schurman@gmail.com
- * 
- * Created on August 20, 2012
  */
 
 #include "bitFile.h"
@@ -12,7 +10,10 @@
 
 using std::ios;
 using std::vector;
-using std::ofstream;
+
+/*******************************************************************************
+******************************** BitFileOut ************************************
+*******************************************************************************/
 
 BitFileOut::BitFileOut(const std::string& filePath)
 {
@@ -29,8 +30,15 @@ BitFileOut::~BitFileOut()
 
 bool BitFileOut::open(const std::string& filePath)
 {
-    outfile.open(filePath, ios::in | ios::out | ios::binary | ios::trunc);
-    return outfile.good();
+    if (isOpen())
+    {
+        return false;
+    }
+    else
+    {
+        outfile.open(filePath, ios::in | ios::out | ios::binary | ios::trunc);
+        return outfile.good();
+    }
 }
 
 void BitFileOut::close()
@@ -88,10 +96,160 @@ void BitFileOut::writeBit(unsigned char bit)
     }
 }
 
+void BitFileOut::writeBits(const vector<bool>& bits)
+{
+    for (auto it = bits.cbegin(); it != bits.cend(); it++)
+    {
+        if (*it)
+        {
+            writeBit(0x01);
+        }
+        else
+        {
+            writeBit(0x00);
+        }
+    }
+}
+
 void BitFileOut::writeByte(unsigned char bits)
 {
     for (unsigned char mask = 0x80; mask != 0; mask >>= 1)
     {
         writeBit(bits & mask);
     }
+}
+
+/*******************************************************************************
+******************************** BitFileIn *************************************
+*******************************************************************************/
+
+BitFileIn::BitFileIn(const std::string& filePath)
+{
+    open(filePath);
+}
+
+BitFileIn::~BitFileIn()
+{
+    if (isOpen())
+    {
+        close();
+    }
+}
+
+bool BitFileIn::open(const std::string& filePath)
+{
+    bool success = false;
+
+    if (!isOpen())
+    {
+        infile.open(filePath, ios::in | ios::binary);
+        if (infile.good())
+        {
+            buffer = infile.get();
+        }
+        success = infile.good();
+
+        if (success)
+        {
+            // The first 3 bits of the file indicate the number of unused,
+            // excess bits at the end of the last byte of the file.
+            numRemainderBits = buffer >> 5;
+
+            // Begin reading from the buffer on the 4th bit.
+            nextBit = 0x10;
+        }
+    }
+    return success;
+}
+
+void BitFileIn::close()
+{
+    if (isOpen())
+    {
+        infile.close();
+    }
+}
+
+std::pair<bool, unsigned char> BitFileIn::readBit()
+{
+    bool readSuccess = false;
+    unsigned char bitOut = 0x00;
+
+    if (isOpen() && !eof())
+    {
+        readSuccess = true;
+
+        // If our 1 in nextBit has been shifted off the end, that means that
+        // we've read everything in the buffer and need to read a new byte
+        // from file.
+        if (nextBit == 0x00)
+        {
+            readSuccess = readToBuffer();
+        }
+
+        if (readSuccess)
+        {
+            if ((buffer & nextBit) == 0)
+            {
+                bitOut = 0x00;
+            }
+            else
+            {
+                bitOut = 0x01;
+            }
+            nextBit >>= 1;
+        }
+    }
+
+    return std::make_pair(readSuccess, bitOut);
+}
+
+bool BitFileIn::readToBuffer()
+{
+    bool readSuccess = false;
+
+    if (isOpen())
+    {
+        buffer = infile.get();
+        readSuccess = infile.good();
+
+        if (readSuccess)
+        {
+            nextBit = 0x80;
+        }
+    }
+
+    return readSuccess;
+}
+
+vector<bool> BitFileIn::readBits(int numBitsToRead)
+{
+    std::vector<bool> bitsOut;
+
+    // Read bits until we've read numBitsToRead or until we fail to read
+    // another bit
+    for (int i = 0; i < numBitsToRead; i++)
+    {
+        auto [readSuccess, bitRead] = readBit();
+        if (readSuccess)
+        {
+            bitsOut.push_back((bool)bitRead);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    return bitsOut;
+}
+
+bool BitFileIn::eof()
+{
+    // (1) We can only be EOF if we're open.
+    // (2) We can only be EOF if our infile is EOF.
+    // (3) If the next bit to be read from the buffer is within numRemainderBits
+    //     from the end of the buffer, then the next bit is an unused, remainder
+    //     bit that shouldn't be read, and we're EOF.
+    return isOpen() && infile.eof() && nextBit >> numRemainderBits == 0;
 }

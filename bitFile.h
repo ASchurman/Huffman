@@ -1,8 +1,6 @@
 /* 
  * File:   bitFile.h
  * Author: Alexander Schurman, alexander.schurman@gmail.com
- *
- * Created on August 20, 2012
  */
 
 #ifndef BITFILE_H
@@ -43,11 +41,16 @@ public:
 
     bool isOpen() { return outfile.is_open(); }
     
-    // Flushes the buffer to file and closes the file.
+    // Flushes the buffer to file and closes the file. If not called manually,
+    // it is called by the destructor.
     void close();
 
     // Writes a single bit. Any non-zero value is read as a 1.
     void writeBit(unsigned char bit);
+
+    // Writes a number of bits. Each element in vector<bool> is interpreted as
+    // a bit: true is 1, false is 0.
+    void writeBits(const std::vector<bool>& bits);
     
     // Writes a full byte.
     void writeByte(unsigned char bits);
@@ -68,5 +71,68 @@ private:
     unsigned char nextBit = 0x10;
 };
 
-#endif	/* BITBUFFER_H */
+class BitFileIn {
+public:
+    // Constructs without associating with a file
+    BitFileIn() = default;
+
+    virtual ~BitFileIn() noexcept;
+
+    // Initializes by opening the given input file
+    BitFileIn(const std::string& filePath);
+
+    BitFileIn(const BitFileIn&) = delete;
+    BitFileIn& operator=(const BitFileIn&) = delete;
+
+    BitFileIn(BitFileIn&&) = delete;
+    BitFileIn& operator=(BitFileIn&&) = delete;
+
+    // Opens the given file, returning true if successful
+    bool open(const std::string& filePath);
+
+    bool isOpen() { return infile.is_open(); }
+
+    // Closes the file. If not called manually, it is called by the destructor.
+    void close();
+
+    // Reads a single bit from the file.
+    // Returns values:
+    // bool - True if the read is successful.
+    // unsigned char - The least-significant-bit is set to the read bit. If the
+    //                 read is unsuccessful, then this will be 0x00.
+    std::pair<bool, unsigned char> readBit();
+
+    // Reads a given number of bits from the file.
+    // Returns the read bits. The vector<bool> container is optimized to store
+    // each bool as a bit rather than as a sizeof(bool).
+    // Note that the size of the vector<bool> may be less than numBitsToRead if
+    // there's a read error or we've hit EOF.
+    std::vector<bool> readBits(int numBitsToRead);
+
+    // Indicates whether we've read to the end of the file. If a read is
+    // unsuccessful and we've NOT hit EOF, then there's a read error.
+    bool eof();
+
+private:
+    // Reads a new byte from infile into the buffer and resets nextBit.
+    // Returns true if successful.
+    bool readToBuffer();
+
+    // The file from which to read bits.
+    std::ifstream infile;
+
+    // Stores the most recently-read byte from infile. When the caller reads
+    // bits, they're read from here.
+    unsigned char buffer;
+
+    // Acts as a mask on buffer, with a 1 in the bit position to read next from
+    // buffer.
+    unsigned char nextBit;
+
+    // The number of unused, remainder bits in the final byte of the file.
+    // This value is stored in the first 3 bits of the first byte of the file.
+    unsigned char numRemainderBits;
+};
+
+#endif	/* BITFILE_H */
 
