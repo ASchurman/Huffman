@@ -43,17 +43,21 @@ public:
     
     // Flushes the buffer to file and closes the file. If not called manually,
     // it is called by the destructor.
-    void close();
+    // Returns true if the cleanup and close is successful. If it returns false,
+    // the file is still closed at the end.
+    bool close();
 
     // Writes a single bit. Any non-zero value is read as a 1.
-    void writeBit(unsigned char bit);
+    // Returns true if successful.
+    bool writeBit(unsigned char bit);
 
     // Writes a number of bits. Each element in vector<bool> is interpreted as
     // a bit: true is 1, false is 0.
-    void writeBits(const std::vector<bool>& bits);
+    // Returns true if successful.
+    bool writeBits(const std::vector<bool>& bits);
     
-    // Writes a full byte.
-    void writeByte(unsigned char bits);
+    // Writes a full byte. Returns true if successful.
+    bool writeByte(unsigned char bits);
 
 private:
     // The file to which bits are written

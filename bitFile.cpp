@@ -41,14 +41,16 @@ bool BitFileOut::open(const std::string& filePath)
     }
 }
 
-void BitFileOut::close()
+bool BitFileOut::close()
 {
     // We can't close if we're already closed.
     if (!isOpen())
     {
-        return;
+        return false;
     }
     
+    bool success = true;
+
     // First, determine the number of unused bits at the end of the last byte.
     unsigned char numUnused = 0;
 
@@ -66,24 +68,31 @@ void BitFileOut::close()
     if (numUnused > 0)
     {
         outfile.put((char)buffer);
+        success = outfile.good();
     }
 
     // Finally, write my unused bits to the beginning of the file and close it.
-    outfile.seekp(0);
-    unsigned char firstByte = outfile.peek();
-    firstByte |= numUnused << 5; // Shift 5 moves numUnused to 3 most-sig-bits
-    outfile.put(firstByte);
+    if (success)
+    {
+        outfile.seekp(0);
+        unsigned char firstByte = outfile.peek();
+        firstByte |= numUnused << 5; // Shift moves numUnused to first 3 bits
+        outfile.put(firstByte);
+        success = outfile.good();
+    }
 
     outfile.close();
+    return success;
 }
 
-void BitFileOut::writeBit(unsigned char bit)
+bool BitFileOut::writeBit(unsigned char bit)
 {
+    bool success = true;
+
     if (bit)
     {
         buffer |= nextBit;
     }
-
     nextBit >>= 1;
 
     // If nextBit is 0, then we've right-shifted the 1 off of it, meaning the
@@ -91,32 +100,44 @@ void BitFileOut::writeBit(unsigned char bit)
     if (nextBit == 0)
     {
         outfile.put(buffer);
+        success = outfile.good();
+
         nextBit = 0x80;
         buffer = 0x00;
     }
+
+    return success;
 }
 
-void BitFileOut::writeBits(const vector<bool>& bits)
+bool BitFileOut::writeBits(const vector<bool>& bits)
 {
-    for (auto it = bits.cbegin(); it != bits.cend(); it++)
+    bool success = true;
+
+    for (auto it = bits.cbegin(); it != bits.cend() && success; it++)
     {
         if (*it)
         {
-            writeBit(0x01);
+            success = writeBit(0x01);
         }
         else
         {
-            writeBit(0x00);
+            success = writeBit(0x00);
         }
     }
+
+    return success;
 }
 
-void BitFileOut::writeByte(unsigned char bits)
+bool BitFileOut::writeByte(unsigned char bits)
 {
-    for (unsigned char mask = 0x80; mask != 0; mask >>= 1)
+    bool success = true;
+
+    for (unsigned char mask = 0x80; mask != 0 && success; mask >>= 1)
     {
-        writeBit(bits & mask);
+        success = writeBit(bits & mask);
     }
+
+    return success;
 }
 
 /*******************************************************************************

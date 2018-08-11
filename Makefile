@@ -4,83 +4,60 @@
 # Alexander Schurman
 # alexander.schurman@gmail.com
 
-# target executable name
-TARGET	:=huffman
+TARGET		:=huffman
+TESTTARGET 	:=huffmanTest
 
-# source files with extensions, separated by spaces
-SOURCES	:=main.cpp node.cpp huffman.cpp bitFile.cpp
+SRC			:=$(shell ls *.cpp)
+HEADERS		:=$(shell ls *.h)
+OBJDIR		:=obj
+TESTDIR		:=test
+_OBJ		:=$(SRC:.cpp=.o)
+OBJ			:=$(patsubst %,$(OBJDIR)/%,$(_OBJ))
+TESTSRC		:=$(shell ls $(TESTDIR)/*.cpp)
+_TESTOBJ	:=$(TESTSRC:.cpp=.o)
+TESTOBJ		:=$(patsubst $(TESTDIR)/%,$(OBJDIR)/%,$(_TESTOBJ))
 
-# set CPP to 1 for compiling C++; set to 0 for compiling C
-CPP	:=1
-
-# define DEBUG=1 in command line for debug
-# define ARGS to be whatever arguments to pass to target
-
-#-------------------------------------------------------------------------------
-
-# set compilers to use--------------------
-CC		:= gcc
-CPPC		:= g++
-
-ifeq ($(CPP),0)
-	COMP	:= $(CC)
-else
-	COMP	:= $(CPPC)
-endif
-
-# flags------------------------------------
-ALLFLAGS	:= -Wall -pedantic -Werror
-CFLAGSBASE	:= -std=c99
-CPPFLAGSBASE	:= -std=c++17
-
-DEBUGFLAGS	:= -g3
-RELEASEFLAGS	:= -O3
-
-VALGRIND	:= valgrind -q --tool=memcheck --leak-check=yes
+CXX			:=g++
+CXXFLAGS	+=-Wall -pedantic -Werror -std=c++17
 
 ifeq ($(DEBUG),1)
-	CFLAGS	:= $(ALLFLAGS) $(CFLAGSBASE) $(DEBUGFLAGS)
-	CPPFLAGS := $(ALLFLAGS) $(CPPFLAGSBASE) $(DEBUGFLAGS)
+	CXXFLAGS+= $(ALLFLAGS) -ggdb3
 else
-	CFLAGS	:= $(ALLFLAGS) $(CFLAGSBASE) $(RELEASEFLAGS)
-	CPPFLAGS := $(ALLFLAGS) $(CPPFLAGSBASE) $(RELEASEFLAGS)
+	CXXFLAGS+= $(ALLFLAGS) -O2
 endif
 
-ifeq ($(CPP),1)
-	FLAGS	:= $(CPPFLAGS)
-else
-	FLAGS	:= $(CFLAGS)
-endif
-
-# building---------------------------------
-
-ifeq ($(CPP),1)
-	OBJ	:= $(SOURCES:.cpp=.o)
-else
-	OBJ	:= $(SOURCES:.c=.o)
-endif
-
+.PHONY: all
 all: $(OBJ)
-	$(COMP) $(FLAGS) -o $(TARGET) $^
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $^
 
-%.o: %.c
-	$(COMP) $(FLAGS) -c $<
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
+
+$(OBJDIR)/%.o: %.cpp $(OBJDIR)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+$(OBJDIR)/%.o: $(TESTDIR)/%.cpp $(OBJDIR)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+.PHONY: test
+test: $(filter-out $(OBJDIR)/main.o,$(OBJ)) $(TESTOBJ)
+	$(CXX) $(CXXFLAGS) -o $(TESTTARGET) $^
 
 # running----------------------------------
 
+.PHONY: run
 run: all
 	./$(TARGET) $(ARGS)
 
+.PHONY: time
 time: all
 	time ./$(TARGET) $(ARGS)
 
-valgrind: all
-	$(VALGRIND) ./$(TARGET) $(ARGS)
-	
+.PHONY: debug
 debug: all
 	gdb ./$(TARGET) $(ARGS)
 
 # cleaning---------------------------------
 
+.PHONY: clean
 clean:
-	rm -f $(TARGET) *.o
+	rm -rf $(TARGET) $(TESTTARGET) $(OBJDIR)
