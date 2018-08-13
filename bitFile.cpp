@@ -12,6 +12,65 @@ using std::ios;
 using std::vector;
 
 /*******************************************************************************
+******************************** BitVector *************************************
+*******************************************************************************/
+
+void BitVector::pushBack(bool bit)
+{
+    bitstore.push_back(bit);
+}
+
+void BitVector::pushBack(unsigned char byte)
+{
+    for (unsigned char mask = 0x80; mask != 0; mask >>= 1)
+    {
+        pushBack((byte & mask) > 0);
+    }
+}
+
+void BitVector::pushFront(bool bit)
+{
+    bitstore.insert(bitstore.cbegin(), bit);
+}
+
+void BitVector::pushFront(unsigned char byte)
+{
+    for (unsigned char mask = 0x01; mask != 0; mask <<= 1)
+    {
+        pushFront((byte & mask) > 0);
+    }
+}
+
+bool BitVector::popfrontByte(unsigned char& byteOut)
+{
+    bool success = canPopByte();
+    byteOut = 0x00;
+
+    if (success)
+    {
+        for (unsigned char mask = 0x80; mask > 0; mask >>= 1)
+        {
+            byteOut |= mask & (bitstore.front() ? 0xFF : 0x00);
+            bitstore.erase(bitstore.begin());
+        }
+    }
+    return success;
+}
+
+bool BitVector::popfrontBit(unsigned char& bitOut)
+{
+    bool success = canPopBit();
+    bitOut = 0x00;
+
+    if (success)
+    {
+        bitOut = bitstore.front() ? 0x01 : 0x00;
+        bitstore.erase(bitstore.begin());
+    }
+    return success;
+}
+
+/*******************************************************************************
 ******************************** BitFileOut ************************************
 *******************************************************************************/
 
@@ -87,6 +146,11 @@ bool BitFileOut::close()
 
 bool BitFileOut::writeBit(unsigned char bit)
 {
+    if (!isOpen())
+    {
+        return false;
+    }
+
     bool success = true;
 
     if (bit)
@@ -191,15 +255,13 @@ void BitFileIn::close()
     }
 }
 
-std::pair<bool, unsigned char> BitFileIn::readBit()
+bool BitFileIn::readBit(unsigned char& bitOut)
 {
-    bool readSuccess = false;
-    unsigned char bitOut = 0x00;
+    bool readSuccess = canRead();
+    bitOut = 0x00;
 
-    if (isOpen() && !eof())
+    if (readSuccess)
     {
-        readSuccess = true;
-
         // If our 1 in nextBit has been shifted off the end, that means that
         // we've read everything in the buffer and need to read a new byte
         // from file.
@@ -222,7 +284,7 @@ std::pair<bool, unsigned char> BitFileIn::readBit()
         }
     }
 
-    return std::make_pair(readSuccess, bitOut);
+    return readSuccess;
 }
 
 bool BitFileIn::readToBuffer()
@@ -251,8 +313,8 @@ vector<bool> BitFileIn::readBits(int numBitsToRead)
     // another bit
     for (int i = 0; i < numBitsToRead; i++)
     {
-        auto [readSuccess, bitRead] = readBit();
-        if (readSuccess)
+        unsigned char bitRead;
+        if (readBit(bitRead))
         {
             bitsOut.push_back((bool)bitRead);
         }
@@ -265,12 +327,17 @@ vector<bool> BitFileIn::readBits(int numBitsToRead)
     return bitsOut;
 }
 
-bool BitFileIn::eof()
+bool BitFileIn::canRead()
 {
-    // (1) We can only be EOF if we're open.
-    // (2) We can only be EOF if our infile is EOF.
-    // (3) If the next bit to be read from the buffer is within numRemainderBits
-    //     from the end of the buffer, then the next bit is an unused, remainder
-    //     bit that shouldn't be read, and we're EOF.
-    return isOpen() && infile.eof() && nextBit >> numRemainderBits == 0;
+    // (1) We can only read if we're open.
+    // (2) There's no more bits to read if:
+    //     --the next bit to be read from the buffer is within numRemainderBits
+    //       from the end of the buffer, AND
+    //     --the buffer is the final byte of the file
+    return isOpen()
+           && !(nextBit >> numRemainderBits == 0 && infile.peek() == EOF);
+
+    // TODO: I should rewrite to buffer more than 1 byte from the file at a
+    //       time, so that I'm not calling infile.peek() so frequently and then
+    //       throwing away the value.
 }

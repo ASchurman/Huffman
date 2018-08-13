@@ -23,7 +23,7 @@ CXXFLAGS	+=-Wall -pedantic -Werror -std=c++17
 ifeq ($(DEBUG),1)
 	CXXFLAGS+= $(ALLFLAGS) -ggdb3
 else
-	CXXFLAGS+= $(ALLFLAGS) -O2
+	CXXFLAGS+= $(ALLFLAGS)
 endif
 
 .PHONY: all

@@ -10,6 +10,47 @@
 #include <vector>
 #include <string>
 
+// TODO: Refactor to use BitVector in BitFileIn and BitFileOut.
+
+/*
+Wraps a container in order to store and read bits and bytes.
+The advantage of this class is that entire bytes can be retrieved from the
+vector at once in the form of a numeric type.
+*/
+class BitVector {
+public:
+    // Adds bits to the end of the vector
+    void pushBack(bool bit);
+    void pushBack(unsigned char byte);
+
+    // Adds bits to the front of the vector
+    void pushFront(bool bit);
+    void pushFront(unsigned char byte);
+
+    // If the entire vector were packed into bytes, returns the number of bits
+    // remaining that wouldn't fit into a byte
+    unsigned char remainderBits() { return bitstore.size() % 8; }
+
+    bool canPopBit() { return bitstore.size() >= 1; }
+    bool canPopByte() { return bitstore.size() >= 8; }
+    unsigned int numBits() { return bitstore.size(); }
+
+    // Gets bits from the vector. Can return with failure if there aren't
+    // enough bits in the vector.
+    // Returns:
+    // (1) bool          - True if successful. 
+    // (2) unsigned char - The retrieved bits. This is 0x00 if the retrieval
+    //                     failed. In the case of getBit, the least-significant-
+    //                     bit is set.
+    bool popfrontByte(unsigned char& byteOut);
+    bool popfrontBit(unsigned char& bitOut);
+
+private:
+    // vector<bool> is typically optimized in order to store each element in
+    // a bit rather than in a sizeof(bool).
+    std::vector<bool> bitstore;
+};
+
 /*
 Wraps a file stream to write individual bits to file. If the file already
 exists, it is overwritten.
@@ -65,7 +106,7 @@ private:
 
     // Since only full bytes can be written to file at a time, buffer our bits
     // here until we have a full byte to write.
-    unsigned char buffer;
+    unsigned char buffer = 0x00;
 
     // Acts as a mask, holding a 1 in the position in the buffer to which we'll
     // write next. When the 1 gets shifted off the end, it's time to flush
@@ -75,6 +116,12 @@ private:
     unsigned char nextBit = 0x10;
 };
 
+/*
+Wraps a file stream to read individual bits to file.
+As with BitFileOut, the first 3 bits of the file are reserved to indicate how
+many unused bits there are in the final byte of the file. This is done because
+the number of bits intended to be written may not be divisible by 8.
+*/
 class BitFileIn {
 public:
     // Constructs without associating with a file
@@ -102,9 +149,9 @@ public:
     // Reads a single bit from the file.
     // Returns values:
     // bool - True if the read is successful.
-    // unsigned char - The least-significant-bit is set to the read bit. If the
-    //                 read is unsuccessful, then this will be 0x00.
-    std::pair<bool, unsigned char> readBit();
+    // bitout - The least-significant-bit is set to the read bit. If the read
+    //          is unsuccessful, then this will be 0x00.
+    bool readBit(unsigned char& bitOut);
 
     // Reads a given number of bits from the file.
     // Returns the read bits. The vector<bool> container is optimized to store
@@ -113,9 +160,9 @@ public:
     // there's a read error or we've hit EOF.
     std::vector<bool> readBits(int numBitsToRead);
 
-    // Indicates whether we've read to the end of the file. If a read is
-    // unsuccessful and we've NOT hit EOF, then there's a read error.
-    bool eof();
+    // Indicates whether one can read bits. If there aren't any more bits to
+    // read, returns false.
+    bool canRead();
 
 private:
     // Reads a new byte from infile into the buffer and resets nextBit.
