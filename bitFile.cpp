@@ -70,13 +70,34 @@ bool BitVector::popfrontBit(unsigned char& bitOut)
     return success;
 }
 
+void BitVector::clear()
+{
+    bitstore.clear();
+}
+
 /*******************************************************************************
 ******************************** BitFileOut ************************************
 *******************************************************************************/
 
+BitFileOut::BitFileOut()
+{
+    initBuffer();
+}
+
 BitFileOut::BitFileOut(const std::string& filePath)
 {
+    initBuffer();
     open(filePath);
+}
+
+void BitFileOut::initBuffer()
+{
+    // Pad the front of the first byte by 3 bits. When we close the file, we
+    // will write in these bits the number of excess, unused bits at the end
+    // of the final byte.
+    buffer.pushBack(false);
+    buffer.pushBack(false);
+    buffer.pushBack(false);
 }
 
 BitFileOut::~BitFileOut()
@@ -111,22 +132,27 @@ bool BitFileOut::close()
     bool success = true;
 
     // First, determine the number of unused bits at the end of the last byte.
-    unsigned char numUnused = 0;
+    unsigned char numUnused = (8 - buffer.remainderBits()) % 8;
 
-    // If the next bit to be written is the most-significant-bit, then there's
-    // currently no bits in the buffer and thus no unused bits.
-    if (nextBit != 0x80)
+    // Next, flush the buffer to file. In addition to flushing the whole bytes
+    // from the buffer, we also need to flush the remainder bits.
+    flushBuffer();
+    if (buffer.canPopBit())
     {
-        for (numUnused = 0; nextBit != 0; nextBit >>= 1)
+        unsigned char finalByte = 0x00;
+        unsigned char mask = 0x80;
+        while (buffer.canPopBit())
         {
-            numUnused++;
+            unsigned char bitOut;
+            buffer.popfrontBit(bitOut);
+            if (bitOut)
+            {
+                finalByte |= mask;
+            }
+            mask >>= 1;
         }
-    }
 
-    // Next, flush the buffer to file if there's anything in the buffer.
-    if (numUnused > 0)
-    {
-        outfile.put((char)buffer);
+        outfile.put(finalByte);
         success = outfile.good();
     }
 
@@ -140,7 +166,26 @@ bool BitFileOut::close()
         success = outfile.good();
     }
 
+    buffer.clear();
     outfile.close();
+    return success;
+}
+
+bool BitFileOut::flushBuffer()
+{
+    if (!isOpen())
+    {
+        return false;
+    }
+
+    bool success = true;
+    while (buffer.canPopByte() && success)
+    {
+        unsigned char byteOut;
+        buffer.popfrontByte(byteOut);
+        outfile.put(byteOut);
+        success = outfile.good();
+    }
     return success;
 }
 
@@ -153,21 +198,11 @@ bool BitFileOut::writeBit(unsigned char bit)
 
     bool success = true;
 
-    if (bit)
-    {
-        buffer |= nextBit;
-    }
-    nextBit >>= 1;
+    buffer.pushBack((bool)bit);
 
-    // If nextBit is 0, then we've right-shifted the 1 off of it, meaning the
-    // buffer is full and needs to be flushed.
-    if (nextBit == 0)
+    if (buffer.numBits() >= bufferCapacity)
     {
-        outfile.put(buffer);
-        success = outfile.good();
-
-        nextBit = 0x80;
-        buffer = 0x00;
+        success = flushBuffer();
     }
 
     return success;
@@ -230,21 +265,68 @@ bool BitFileIn::open(const std::string& filePath)
         infile.open(filePath, ios::in | ios::binary);
         if (infile.good())
         {
-            buffer = infile.get();
-        }
-        success = infile.good();
+            // Get the first byte from infile in order to extract the first 3
+            // bits, indicating the number of excess bits at the end of the
+            // last byte. Then from there read into the buffer.
+            unsigned char firstByte = infile.get();
+            if (infile.good())
+            {
+                numRemainderBits = (firstByte & 0xE0) >> 5;
+                for (unsigned char mask = 0x10; mask != 0; mask >>= 1)
+                {
+                    buffer.pushBack((bool)(firstByte & mask));
+                }
 
-        if (success)
-        {
-            // The first 3 bits of the file indicate the number of unused,
-            // excess bits at the end of the last byte of the file.
-            numRemainderBits = buffer >> 5;
-
-            // Begin reading from the buffer on the 4th bit.
-            nextBit = 0x10;
+                success = readToBuffer();
+            }
         }
     }
     return success;
+}
+
+bool BitFileIn::readToBuffer()
+{
+    bool readSuccess = false;
+
+    if (isOpen())
+    {
+        vector<unsigned char> readBytes(bufferCapacityBytes);
+        infile.read((char*)readBytes.data(), bufferCapacityBytes);
+        int numRead = infile.gcount();
+
+        if (numRead > 0)
+        {
+            // Put the read data into the bit buffer
+            readSuccess = true;
+            for (int i = 0; i < numRead - 1; i++)
+            {
+                buffer.pushBack(readBytes[i]);
+            }
+
+            // The final byte read may be the final byte in the file. If it is,
+            // we need to handle it differently.
+            if (infile.peek() == EOF)
+            {
+                // Since we just read to the end of the file, don't put the
+                // excess bits in the last byte into the buffer.
+                unsigned char mask = 0x80;
+                unsigned char finalByte = readBytes[numRead - 1];
+                for (int i = 0; i < 8 - numRemainderBits; i++)
+                {
+                    buffer.pushBack((bool)(finalByte & mask));
+                    mask >>= 1;
+                }
+            }
+            else
+            {
+                // The final byte read isn't the last byte in the file, so
+                // put the entire byte into the bit buffer.
+                buffer.pushBack(readBytes[numRead - 1]);
+            }
+        }
+    }
+
+    return readSuccess;
 }
 
 void BitFileIn::close()
@@ -252,6 +334,7 @@ void BitFileIn::close()
     if (isOpen())
     {
         infile.close();
+        buffer.clear();
     }
 }
 
@@ -262,46 +345,16 @@ bool BitFileIn::readBit(unsigned char& bitOut)
 
     if (readSuccess)
     {
-        // If our 1 in nextBit has been shifted off the end, that means that
-        // we've read everything in the buffer and need to read a new byte
-        // from file.
-        if (nextBit == 0x00)
+        if (!buffer.canPopBit())
         {
             readSuccess = readToBuffer();
         }
 
         if (readSuccess)
         {
-            if ((buffer & nextBit) == 0)
-            {
-                bitOut = 0x00;
-            }
-            else
-            {
-                bitOut = 0x01;
-            }
-            nextBit >>= 1;
+            readSuccess = buffer.popfrontBit(bitOut);
         }
     }
-
-    return readSuccess;
-}
-
-bool BitFileIn::readToBuffer()
-{
-    bool readSuccess = false;
-
-    if (isOpen())
-    {
-        buffer = infile.get();
-        readSuccess = infile.good();
-
-        if (readSuccess)
-        {
-            nextBit = 0x80;
-        }
-    }
-
     return readSuccess;
 }
 
@@ -327,17 +380,37 @@ vector<bool> BitFileIn::readBits(int numBitsToRead)
     return bitsOut;
 }
 
+bool BitFileIn::readByte(unsigned char& byteOut)
+{
+    byteOut = 0x00;
+    bool success = isOpen();
+
+    if (success)
+    {
+        // If we have fewer than 8 bits in the buffer, try refilling the buffer
+        if (!buffer.canPopByte())
+        {
+            readToBuffer();
+        }
+
+        // If we have now have enough bits in the buffer, read them out. But if
+        // we still don't have enough after reading into buffer, fail.
+        if (buffer.canPopByte())
+        {
+            success = buffer.popfrontByte(byteOut);
+        }
+        else
+        {
+            success = false;
+        }
+    }
+    return success;
+}
+
 bool BitFileIn::canRead()
 {
-    // (1) We can only read if we're open.
-    // (2) There's no more bits to read if:
-    //     --the next bit to be read from the buffer is within numRemainderBits
-    //       from the end of the buffer, AND
-    //     --the buffer is the final byte of the file
-    return isOpen()
-           && !(nextBit >> numRemainderBits == 0 && infile.peek() == EOF);
-
-    // TODO: I should rewrite to buffer more than 1 byte from the file at a
-    //       time, so that I'm not calling infile.peek() so frequently and then
-    //       throwing away the value.
+   // (1) We can only read if we're open.
+   // (2) We need to have bits to read either in the buffer or the file.
+   return isOpen()
+          && (buffer.canPopBit() || infile.peek() != EOF);
 }
